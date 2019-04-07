@@ -1,0 +1,62 @@
+language: julia
+os:
+  - linux
+julia:
+  - 1.0
+notifications:
+  email: false
+git:
+  depth: 99999999
+cache:
+  timeout: 1000
+  directories:
+    - downloads
+env:
+  global:
+    - BINARYBUILDER_DOWNLOADS_CACHE=downloads
+    - BINARYBUILDER_AUTOMATIC_APPLE=true
+  # Our build takes too long for one job, so split targets across multiple jobs
+  # triplets come from using BinaryBuilder; triplet.(supported_platforms())
+  matrix:
+    - TARGET=i686-linux-gnu
+    - TARGET=x86_64-linux-gnu
+    - TARGET=aarch64-linux-gnu
+    - TARGET=arm-linux-gnueabihf
+    - TARGET=powerpc64le-linux-gnu
+    - TARGET=i686-linux-musl
+    - TARGET=x86_64-linux-musl
+    - TARGET=aarch64-linux-musl
+    - TARGET=arm-linux-musleabihf
+    - TARGET=x86_64-apple-darwin14
+    - TARGET=x86_64-unknown-freebsd11.1
+    - TARGET=i686-w64-mingw32
+    - TARGET=x86_64-w64-mingw32
+sudo: required
+
+jobs:
+  include:
+    - stage: regenerate build.jl
+      script: julia --color=yes build_tarballs.jl --only-buildjl
+      if: tag IS present
+
+# Before anything else, get the latest versions of things
+before_script:
+  - julia --color=yes -e 'using Pkg;
+      Pkg.add(PackageSpec(name="BinaryProvider", rev="master"));
+      Pkg.add(PackageSpec(name="BinaryBuilder", rev="master"))'
+
+script:
+  - julia --color=yes build_tarballs.jl $TARGET
+
+deploy:
+    provider: releases
+    api_key:
+        # Note; this api_key is only valid for JuliaGeo/PROJBuilder; you need
+        # to make your own: https://docs.travis-ci.com/user/deployment/releases/
+        secure: HsThMSltYrbHb8rJw26qh42eHvZr+WeRgYR2ZBO41gIWotwnoYLaz7I4hgehN8OzmNV7rqvHAoc0vSrHwu/6CHkcuH0c+/w84Ay+Z6E6yLqhBZvX3FWwU2uS1PUEWx2elgxSEBvIXdUm1SiST4jExvnoQu6h2CAJBWgijrq2V8GVQD7CJP1QiafXQbWabkm2i9oW1xpzS7na7UUXWf97YdzeD/7KsneQACa0ikOJsR6cWwG9GO8iNtK3kNdDJUYWxnc7zp7jB1LrAChv5WO3QBH6izEOtFbkCC+gmt0xJ60fbLaBuENoyvyjxRw9aBpdHIU7mVjVm95rUCkwlZyTOm+U3CozsL3ZKgNSN92BRUNCVwCNhwHbSOM4aQbdLYb86ePIS6m6vgiOoHio48t0UbsQrZHfgo7QaMbDcWsROqNd+dpoyV5uhV35KYwiDOCCU2MuKx3QgeUljS4i1QAAPRj+Zp+8JFPygEGJC7t6LnAdhaazwz5dUnftA/MXPxDnmhn0xi3DnGIk2crUFU6In3JlzxgvPjLhCLuZY5s3Cm3b0hY/Dl3YGrkD28l/34RvqwyQDBbvozsC7wLg82WUY792JhAWlG1UDA4pSY9O54heJemQcagGXRmdCD4ddbKPe63sy9BrUWaUPKMxFmWBjTe7TavWzH34qwMUnhttIZI=
+    file_glob: true
+    file: products/*
+    skip_cleanup: true
+    on:
+        repo: JuliaGeo/PROJBuilder
+        tags: true
